@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="Waktu Sholat Leeds"
+           Manufacturer="Santo"
+           Version="1.0.0.0"
+           UpgradeCode="B7A4F2E1-8C3D-4A6B-9E2F-1D5C7A9B3E4F"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="Versi yang lebih baru dari [ProductName] sudah terpasang." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.PublishDir)\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Santo-UoL/waktu-sholat-leeds" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Santo-UoL/waktu-sholat-leeds" />
+
+    <!-- Folder instalasi: C:\Program Files\Waktu Sholat Leeds -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Waktu Sholat Leeds" />
+    </StandardDirectory>
+
+    <!-- Semua file hasil publish self-contained (.NET sudah dibundel) -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+
+    <!-- Shortcut Start Menu -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="6F2A1B3C-4D5E-4F6A-8B9C-0D1E2F3A4B5C">
+        <Shortcut Id="scStart"
+                  Name="Waktu Sholat Leeds"
+                  Target="[INSTALLFOLDER]waktu sholat.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\WaktuSholatLeeds"
+                       Name="startmenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <!-- Shortcut Desktop -->
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="1A2B3C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D">
+        <Shortcut Id="scDesktop"
+                  Name="Waktu Sholat Leeds"
+                  Target="[INSTALLFOLDER]waktu sholat.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\WaktuSholatLeeds"
+                       Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Waktu Sholat Leeds" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+
+    <!-- Wizard installer dengan pilihan folder -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.InstallerDir)\license.rtf" />
+
+  </Package>
+</Wix>

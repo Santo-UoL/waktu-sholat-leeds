@@ -23,3 +23,9 @@ error.log
 *.suo
 *.cache
 *.log
+
+# Output installer / WiX (artefak build, jangan masuk repo)
+*.msi
+*.wixpdb
+*.wixobj
+publish/

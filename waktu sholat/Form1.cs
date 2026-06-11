@@ -161,6 +161,8 @@ namespace waktu_sholat
         // ------------------------------------------------------------------
         // Gambar tampilan (tema Islami)
         // ------------------------------------------------------------------
+        private Bitmap? _bgCache;   // latar statis di-cache agar repaint ringan
+
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
@@ -168,44 +170,26 @@ namespace waktu_sholat
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
             int W = ClientSize.Width, H = ClientSize.Height;
 
-            using (var bg = new LinearGradientBrush(new Rectangle(0, 0, W, H), _cBgTop, _cBgBot, 90f))
-                g.FillRectangle(bg, 0, 0, W, H);
+            if (_bgCache == null) BuildBgCache();
+            if (_bgCache != null) g.DrawImageUnscaled(_bgCache, 0, 0);
 
-            // watermark khatam (bintang-8) di belakang header
-            using (var wp = new Pen(Color.FromArgb(22, _cGold), 1.4f))
-            {
-                DrawKhatam(g, W / 2f, 96f, 122f, wp);
-                DrawKhatam(g, W / 2f, 96f, 92f, wp);
-            }
-
-            // bingkai ornamen emas + permata sudut
-            using (var fp = new Pen(_cGold, 2f))
-                g.DrawRectangle(fp, 7, 7, W - 15, H - 15);
-            using (var fp2 = new Pen(Color.FromArgb(90, _cGold), 1f))
-                g.DrawRectangle(fp2, 12, 12, W - 25, H - 25);
-            DrawCornerDiamonds(g, 7, 7, W - 15, H - 15);
-
-            // motif bulan sabit + bintang
-            DrawCrescent(g, W / 2f - 13, 40f, 15f, _cGoldLite);
-            DrawStar5(g, W / 2f + 16, 33f, 7.5f, _cGoldLite);
-
-            // judul arab + subjudul latin
-            DrawCenter(g, "أوقات الصلاة", _fArTitle, _cGold, W / 2f, 58f);
+            // subjudul latin (ikut bahasa)
             DrawCenter(g, L("WAKTU SHOLAT  ·  LEEDS", "PRAYER TIMES  ·  LEEDS"),
-                _fSub, Color.FromArgb(170, _cCream), W / 2f, 98f);
+                _fSub, Color.FromArgb(175, _cCream), W / 2f, 100f);
 
             // toggle bahasa (pojok kanan atas)
             DrawLangToggle(g, W);
 
-            // jam besar
+            // jam besar dengan bayangan halus
+            var csz = g.MeasureString(_clockText, _fClock);
+            using (var sh = new SolidBrush(Color.FromArgb(110, 0, 0, 0)))
+                g.DrawString(_clockText, _fClock, sh, W / 2f - csz.Width / 2f + 2f, 118f);
             DrawCenter(g, _clockText, _fClock, _cCream, W / 2f, 116f);
 
             // tanggal + hijriah
-            DrawCenter(g, _dateText, _fDate, Color.FromArgb(215, _cCream), W / 2f, 162f);
+            DrawCenter(g, _dateText, _fDate, Color.FromArgb(210, _cCream), W / 2f, 162f);
             if (_hijriText.Length > 0)
                 DrawCenter(g, _hijriText, _fHijri, _cGoldLite, W / 2f, 182f);
-
-            DrawDivider(g, 46, W - 46, 210f);
 
             // baris sholat
             int top = 224, rowH = 56, gap = 6, x = 26, w = W - 52;
@@ -217,6 +201,152 @@ namespace waktu_sholat
             DrawCenter(g, _statusText, _fStatus, Color.FromArgb(150, _cCream), W / 2f, after + 46);
 
             DrawFooterButtons(g, W, after + 74);
+        }
+
+        // Latar statis: gradien, cahaya, pola girih, siluet masjid, mihrab,
+        // bingkai, bulan sabit, judul arab, pembatas. Digambar sekali ke cache.
+        private void BuildBgCache()
+        {
+            int W = ClientSize.Width, H = ClientSize.Height;
+            if (W <= 0 || H <= 0) return;
+            _bgCache?.Dispose();
+            var bmp = new Bitmap(W, H);
+            using var g = Graphics.FromImage(bmp);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+
+            // gradien zamrud dalam
+            using (var bg = new LinearGradientBrush(new Rectangle(0, 0, W, H), _cBgTop, _cBgBot, 90f))
+                g.FillRectangle(bg, 0, 0, W, H);
+
+            // cahaya lembut dari atas (seakan lampu mihrab)
+            using (var glow = new GraphicsPath())
+            {
+                glow.AddEllipse(W / 2f - 220, -150, 440, 330);
+                using var pgb = new PathGradientBrush(glow)
+                {
+                    CenterColor = Color.FromArgb(36, 255, 235, 180),
+                    SurroundColors = new[] { Color.FromArgb(0, 255, 235, 180) },
+                };
+                g.FillPath(pgb, glow);
+            }
+
+            DrawGirihPattern(g, W, H);      // tekstur geometri Islami
+            DrawMosqueSilhouette(g, W, H);  // siluet masjid di kaki halaman
+
+            // lengkung mihrab di belakang header
+            DrawMihrabArch(g, W / 2f, 26f, 128f, 206f);
+
+            // watermark khatam di belakang header
+            using (var wp = new Pen(Color.FromArgb(20, _cGold), 1.4f))
+            {
+                DrawKhatam(g, W / 2f, 96f, 122f, wp);
+                DrawKhatam(g, W / 2f, 96f, 92f, wp);
+            }
+
+            // bingkai ganda emas + ornamen sudut
+            using (var fp = new Pen(_cGold, 2f))
+                g.DrawRectangle(fp, 7, 7, W - 15, H - 15);
+            using (var fp2 = new Pen(Color.FromArgb(90, _cGold), 1f))
+                g.DrawRectangle(fp2, 12, 12, W - 25, H - 25);
+            DrawCornerOrnaments(g, 7, 7, W - 15, H - 15);
+
+            // bulan sabit + bintang
+            DrawCrescent(g, W / 2f - 14, 44f, 16f, _cGoldLite);
+            DrawStar5(g, W / 2f + 18, 36f, 8f, _cGoldLite);
+
+            // judul arab (statis, tidak ikut bahasa)
+            DrawCenter(g, "أوقات الصلاة", _fArTitle, _cGold, W / 2f, 56f);
+
+            // pembatas berhias
+            DrawDivider(g, 46, W - 46, 210f);
+
+            _bgCache = bmp;
+        }
+
+        // Pola bintang-8 (khatam) tersusun selang-seling sebagai tekstur latar.
+        private void DrawGirihPattern(Graphics g, int W, int H)
+        {
+            const int cell = 58;
+            using var pen = new Pen(Color.FromArgb(9, 240, 218, 150), 1f);
+            for (int row = -1; row * cell < H + cell; row++)
+            {
+                float offY = row * cell;
+                float offX = (row % 2 == 0) ? 0 : cell / 2f;
+                for (int col = -1; col * cell < W + cell; col++)
+                {
+                    float cx = col * cell + offX, cy = offY;
+                    DrawKhatam(g, cx, cy, cell * 0.42f, pen);
+                    g.DrawEllipse(pen, cx - 6, cy - 6, 12, 12);
+                }
+            }
+        }
+
+        // Lengkung mihrab (busur runcing) ganda menghiasi area header.
+        private void DrawMihrabArch(Graphics g, float cx, float apexY, float halfW, float baseY)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                float inset = i * 7f;
+                using var path = new GraphicsPath();
+                path.AddBezier(cx - halfW + inset, baseY,
+                               cx - halfW + inset, apexY + 60f,
+                               cx - 58f, apexY + 8f + inset,
+                               cx, apexY + inset);
+                path.AddBezier(cx, apexY + inset,
+                               cx + 58f, apexY + 8f + inset,
+                               cx + halfW - inset, apexY + 60f,
+                               cx + halfW - inset, baseY);
+                using var pen = new Pen(Color.FromArgb(i == 0 ? 60 : 28, _cGold), i == 0 ? 1.6f : 1f);
+                g.DrawPath(pen, path);
+            }
+            // permata kecil di puncak lengkung
+            using var b = new SolidBrush(_cGold);
+            g.FillPolygon(b, new[] {
+                new PointF(cx, apexY - 7), new PointF(cx + 4.5f, apexY),
+                new PointF(cx, apexY + 7), new PointF(cx - 4.5f, apexY) });
+        }
+
+        // Siluet masjid (kubah bawang & menara) sangat halus di bagian bawah.
+        private void DrawMosqueSilhouette(Graphics g, int W, int H)
+        {
+            float cx = W / 2f, baseY = H - 16f;
+            using var b = new SolidBrush(Color.FromArgb(22, 226, 196, 120));
+
+            // dinding rendah
+            g.FillRectangle(b, cx - 105, baseY - 18, 210, 18);
+
+            // kubah utama (bentuk bawang)
+            using (var dome = new GraphicsPath())
+            {
+                dome.AddBezier(cx - 38, baseY - 18, cx - 38, baseY - 58, cx - 10, baseY - 62, cx, baseY - 72);
+                dome.AddBezier(cx, baseY - 72, cx + 10, baseY - 62, cx + 38, baseY - 58, cx + 38, baseY - 18);
+                dome.CloseFigure();
+                g.FillPath(b, dome);
+            }
+            g.FillEllipse(b, cx - 2f, baseY - 79, 4, 4);          // finial
+            g.FillRectangle(b, cx - 0.8f, baseY - 84, 1.6f, 6);
+
+            // kubah samping
+            foreach (float sx in new[] { cx - 72, cx + 72 })
+            {
+                using var d2 = new GraphicsPath();
+                d2.AddArc(sx - 18, baseY - 36, 36, 36, 180, 180);
+                d2.CloseFigure();
+                g.FillPath(b, d2);
+            }
+
+            // menara kiri & kanan
+            foreach (float mx in new[] { cx - 128, cx + 128 })
+            {
+                g.FillRectangle(b, mx - 4, baseY - 62, 8, 62);
+                g.FillRectangle(b, mx - 6, baseY - 40, 12, 4);    // balkon
+                using var md = new GraphicsPath();
+                md.AddArc(mx - 6, baseY - 72, 12, 12, 180, 180);
+                md.CloseFigure();
+                g.FillPath(b, md);
+                g.FillRectangle(b, mx - 0.7f, baseY - 80, 1.4f, 8);
+            }
         }
 
         private void DrawFooterButtons(Graphics g, int W, float y)
@@ -256,18 +386,34 @@ namespace waktu_sholat
         {
             bool isNext = i == _nextIdx;
             var rect = new RectangleF(x, y, w, h);
+
+            if (isNext)
+            {
+                // pendar emas lembut di sekeliling baris aktif
+                int[] alphas = { 36, 20, 9 };
+                for (int k = 0; k < 3; k++)
+                {
+                    float inf = 2f + k * 2.6f;
+                    using var gp = Round(RectangleF.Inflate(rect, inf, inf), 14f + inf);
+                    using var pen = new Pen(Color.FromArgb(alphas[k], _cGoldLite), 2.2f);
+                    g.DrawPath(pen, gp);
+                }
+            }
+
             using (var path = Round(rect, 14f))
             {
                 if (isNext)
                 {
-                    using var f = new SolidBrush(_cRowNext);
+                    using var f = new LinearGradientBrush(rect,
+                        Color.FromArgb(255, 46, 124, 98), Color.FromArgb(255, 26, 84, 66), 90f);
                     g.FillPath(f, path);
                     using var p = new Pen(_cGold, 1.6f);
                     g.DrawPath(p, path);
                 }
                 else
                 {
-                    using var f = new SolidBrush(Color.FromArgb(20, 255, 255, 255));
+                    using var f = new LinearGradientBrush(rect,
+                        Color.FromArgb(28, 255, 255, 255), Color.FromArgb(9, 255, 255, 255), 90f);
                     g.FillPath(f, path);
                     using var p = new Pen(Color.FromArgb(45, _cGold), 1f);
                     g.DrawPath(p, path);
@@ -282,6 +428,7 @@ namespace waktu_sholat
             }
 
             Color nameCol = isNext ? _cGoldLite : _cCream;
+            Color arCol = isNext ? _cGoldLite : _cGold;
 
             bool hasIq = _rowIqama[i].Length > 0;
             using (var nb = new SolidBrush(nameCol))
@@ -305,7 +452,7 @@ namespace waktu_sholat
                 g.DrawString(_rowTime[i], _fTime, tb, x + w - 20 - ts.Width, y + (h - ts.Height) / 2f);
             }
 
-            using (var arb = new SolidBrush(_cGold))
+            using (var arb = new SolidBrush(arCol))
             {
                 var asz = g.MeasureString(PrayerArabic[i], _fArName);
                 g.DrawString(PrayerArabic[i], _fArName, arb, x + w - 106 - asz.Width, y + (h - asz.Height) / 2f);
@@ -315,17 +462,41 @@ namespace waktu_sholat
         private void DrawCountdown(Graphics g, float cx, float topY)
         {
             var sz = g.MeasureString(_countdownText, _fCount);
-            float pw = sz.Width + 54, ph = 40f;
+            float pw = sz.Width + 58, ph = 40f;
             var rect = new RectangleF(cx - pw / 2f, topY, pw, ph);
             bool alert = _warning && _blinkOn;
 
+            // pendar di belakang pil
+            int[] alphas = { 30, 16, 7 };
+            for (int k = 0; k < 3; k++)
+            {
+                float inf = 2f + k * 2.6f;
+                using var gp = Round(RectangleF.Inflate(rect, inf, inf), (ph + inf * 2) / 2f);
+                using var pen = new Pen(Color.FromArgb(alphas[k], alert ? _cRed : _cGold), 2f);
+                g.DrawPath(pen, gp);
+            }
+
             using (var path = Round(rect, ph / 2f))
             {
-                using var f = new SolidBrush(alert ? _cRed : Color.FromArgb(30, _cGold));
-                g.FillPath(f, path);
+                if (alert)
+                {
+                    using var f = new SolidBrush(_cRed);
+                    g.FillPath(f, path);
+                }
+                else
+                {
+                    using var f = new LinearGradientBrush(rect,
+                        Color.FromArgb(46, _cGold), Color.FromArgb(16, _cGold), 90f);
+                    g.FillPath(f, path);
+                }
                 using var p = new Pen(alert ? _cGoldLite : _cGold, 1.6f);
                 g.DrawPath(p, path);
             }
+
+            // bintang kecil di kiri-kanan teks
+            DrawStar5(g, rect.Left + 17, topY + ph / 2f, 4.5f, alert ? Color.White : Color.FromArgb(200, _cGold));
+            DrawStar5(g, rect.Right - 17, topY + ph / 2f, 4.5f, alert ? Color.White : Color.FromArgb(200, _cGold));
+
             Color tc = alert ? Color.White : _cGoldLite;
             using var tb = new SolidBrush(tc);
             g.DrawString(_countdownText, _fCount, tb, cx - sz.Width / 2f, topY + (ph - sz.Height) / 2f);
@@ -377,12 +548,21 @@ namespace waktu_sholat
         {
             float cx = (x1 + x2) / 2f;
             using var p = new Pen(Color.FromArgb(120, _cGold), 1f);
-            g.DrawLine(p, x1, y, cx - 13, y);
-            g.DrawLine(p, cx + 13, y, x2, y);
-            using var b = new SolidBrush(_cGold);
-            g.FillPolygon(b, new[] { new PointF(cx, y - 6), new PointF(cx + 6, y), new PointF(cx, y + 6), new PointF(cx - 6, y) });
+            g.DrawLine(p, x1, y, cx - 18, y);
+            g.DrawLine(p, cx + 18, y, x2, y);
+
+            // khatam kecil di tengah dengan inti emas
+            using (var kp = new Pen(Color.FromArgb(210, _cGold), 1.2f))
+                DrawKhatam(g, cx, y, 9f, kp);
+            using var b = new SolidBrush(_cGoldLite);
+            g.FillEllipse(b, cx - 2.4f, y - 2.4f, 4.8f, 4.8f);
             g.FillEllipse(b, x1 - 2, y - 2, 4, 4);
             g.FillEllipse(b, x2 - 2, y - 2, 4, 4);
+
+            // titik aksen bertingkat di kiri-kanan khatam
+            using var b2 = new SolidBrush(Color.FromArgb(160, _cGold));
+            g.FillEllipse(b2, cx - 30 - 1.6f, y - 1.6f, 3.2f, 3.2f);
+            g.FillEllipse(b2, cx + 30 - 1.6f, y - 1.6f, 3.2f, 3.2f);
         }
 
         private void DrawCrescent(Graphics g, float cx, float cy, float r, Color color)
@@ -422,12 +602,23 @@ namespace waktu_sholat
             g.DrawPolygon(pen, s2);
         }
 
-        private void DrawCornerDiamonds(Graphics g, int x, int y, int w, int h)
+        // Ornamen sudut: berlian emas + lengan garis dengan titik di ujungnya.
+        private void DrawCornerOrnaments(Graphics g, int x, int y, int w, int h)
         {
             using var b = new SolidBrush(_cGold);
-            void Dia(float ccx, float ccy) =>
-                g.FillPolygon(b, new[] { new PointF(ccx, ccy - 5), new PointF(ccx + 5, ccy), new PointF(ccx, ccy + 5), new PointF(ccx - 5, ccy) });
-            Dia(x, y); Dia(x + w, y); Dia(x, y + h); Dia(x + w, y + h);
+            using var pen = new Pen(Color.FromArgb(170, _cGold), 1.2f);
+            void Corner(float ccx, float ccy, int sx, int sy)
+            {
+                g.FillPolygon(b, new[] {
+                    new PointF(ccx, ccy - 6), new PointF(ccx + 6, ccy),
+                    new PointF(ccx, ccy + 6), new PointF(ccx - 6, ccy) });
+                g.DrawLine(pen, ccx + sx * 9, ccy, ccx + sx * 30, ccy);
+                g.DrawLine(pen, ccx, ccy + sy * 9, ccx, ccy + sy * 30);
+                g.FillEllipse(b, ccx + sx * 32 - 2, ccy - 2, 4, 4);
+                g.FillEllipse(b, ccx - 2, ccy + sy * 32 - 2, 4, 4);
+            }
+            Corner(x, y, 1, 1); Corner(x + w, y, -1, 1);
+            Corner(x, y + h, 1, -1); Corner(x + w, y + h, -1, -1);
         }
 
         private static GraphicsPath Round(RectangleF r, float rad)

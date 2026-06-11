@@ -1,0 +1,25 @@
+# ---- .NET / Visual Studio ----
+bin/
+obj/
+.vs/
+*.user
+
+# Build output
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# File runtime yang dibuat aplikasi
+lang.txt
+error.log
+
+# Misc
+*.suo
+*.cache
+*.log

@@ -67,9 +67,8 @@ namespace waktu_sholat
         private Rectangle _updateRect;       // tombol cek pembaruan
         private Rectangle _uninstallRect;    // tombol uninstall
 
-        // URL yang mengembalikan versi terbaru (teks "1.2.0" di baris 1,
-        // opsional URL unduhan di baris 2). Kosongkan jika belum ada.
-        private const string UpdateCheckUrl = "";
+        // Repo GitHub tempat rilis dipublikasikan (untuk fitur Cek Update).
+        private const string GitHubRepo = "Santo-UoL/waktu-sholat-leeds";
 
         private string L(string id, string en) => _english ? en : id;
         private string PName(int i) => _english ? PrayerEnglish[i] : Prayers[i].Name;
@@ -826,49 +825,101 @@ namespace waktu_sholat
         // ------------------------------------------------------------------
         // Cek pembaruan online
         // ------------------------------------------------------------------
+        private bool _checkingUpdate;
+
         private async void CheckUpdate()
         {
+            if (_checkingUpdate) return;   // cegah klik ganda
+            _checkingUpdate = true;
+            UseWaitCursor = true;
             var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
-
-            if (string.IsNullOrWhiteSpace(UpdateCheckUrl))
-            {
-                MessageBox.Show(
-                    L($"Versi saat ini: {current.ToString(3)}\n\nURL pembaruan belum diatur. Isi konstanta UpdateCheckUrl di kode untuk mengaktifkan cek online.",
-                      $"Current version: {current.ToString(3)}\n\nUpdate URL is not set. Fill the UpdateCheckUrl constant in code to enable online check."),
-                    "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
 
             try
             {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-                var body = (await http.GetStringAsync(UpdateCheckUrl)).Trim();
-                var parts = body.Replace("\r", "").Split('\n');
-                var latest = ParseVersion(parts.Length > 0 ? parts[0] : "");
-                string? downloadUrl = parts.Length > 1 ? parts[1].Trim() : null;
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("WaktuSholatLeeds-Updater");
 
+                // Ambil rilis terbaru dari GitHub
+                var json = await http.GetStringAsync(
+                    $"https://api.github.com/repos/{GitHubRepo}/releases/latest");
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                string tag = root.GetProperty("tag_name").GetString() ?? "";
+                var latest = ParseVersion(tag);
                 if (latest == null)
                 {
-                    MessageBox.Show(L("Tidak bisa membaca info versi dari server.", "Could not read version info from server."),
+                    MessageBox.Show(L("Tidak bisa membaca versi rilis dari GitHub.",
+                                      "Could not read release version from GitHub."),
                         "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                if (latest > current)
+                // Cari asset .msi pada rilis
+                string? msiUrl = null, msiName = null;
+                if (root.TryGetProperty("assets", out var assets))
                 {
-                    var r = MessageBox.Show(
-                        L($"Versi baru tersedia!\n\nSekarang: {current.ToString(3)}\nTerbaru: {latest.ToString(3)}\n\nBuka halaman unduhan sekarang?",
-                          $"A new version is available!\n\nCurrent: {current.ToString(3)}\nLatest: {latest.ToString(3)}\n\nOpen the download page now?"),
-                        "Waktu Sholat Leeds", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                    if (r == DialogResult.Yes && !string.IsNullOrWhiteSpace(downloadUrl))
-                        Process.Start(new ProcessStartInfo(downloadUrl) { UseShellExecute = true });
+                    foreach (var a in assets.EnumerateArray())
+                    {
+                        var n = a.GetProperty("name").GetString() ?? "";
+                        if (n.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                        {
+                            msiUrl = a.GetProperty("browser_download_url").GetString();
+                            msiName = n;
+                            break;
+                        }
+                    }
                 }
-                else
+                string releasePage = root.TryGetProperty("html_url", out var hu)
+                    ? hu.GetString() ?? $"https://github.com/{GitHubRepo}/releases"
+                    : $"https://github.com/{GitHubRepo}/releases";
+
+                if (Norm(latest) <= Norm(current))
                 {
                     MessageBox.Show(
-                        L($"Sudah versi terbaru ({current.ToString(3)}).", $"You're up to date ({current.ToString(3)})."),
+                        L($"Sudah versi terbaru ({current.ToString(3)}).",
+                          $"You're up to date ({current.ToString(3)})."),
                         "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
+
+                // Ada versi baru -> tanya dulu
+                var ask = MessageBox.Show(
+                    L($"Versi baru tersedia di GitHub!\n\nVersi sekarang : {current.ToString(3)}\nVersi terbaru  : {latest.ToString(3)}\n\nUpdate sekarang? Installer akan diunduh, lalu aplikasi ini menutup diri dan installer berjalan.",
+                      $"A new version is available on GitHub!\n\nCurrent version : {current.ToString(3)}\nLatest version  : {latest.ToString(3)}\n\nUpdate now? The installer will be downloaded, then this app will close and the installer will run."),
+                    "Waktu Sholat Leeds", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (ask != DialogResult.Yes) return;
+
+                if (msiUrl == null)
+                {
+                    // Rilis tanpa MSI -> buka halaman rilis di browser
+                    Process.Start(new ProcessStartInfo(releasePage) { UseShellExecute = true });
+                    return;
+                }
+
+                // Unduh MSI ke folder temp (tampilkan balon agar user tahu)
+                _tray.BalloonTipTitle = "Waktu Sholat Leeds";
+                _tray.BalloonTipText = L("Mengunduh pembaruan… app akan menutup sendiri saat siap.",
+                                         "Downloading update… the app will close itself when ready.");
+                _tray.ShowBalloonTip(3000);
+
+                string dest = Path.Combine(Path.GetTempPath(), msiName!);
+                var bytes = await http.GetByteArrayAsync(msiUrl);
+                await File.WriteAllBytesAsync(dest, bytes);
+
+                // Jalankan installer lalu tutup app agar file bisa diganti
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "msiexec.exe",
+                    Arguments = $"/i \"{dest}\"",
+                    UseShellExecute = true,
+                });
+                ExitApp();
+            }
+            catch (HttpRequestException ex) when ((int?)ex.StatusCode == 404)
+            {
+                MessageBox.Show(L("Belum ada rilis di GitHub.", "No releases found on GitHub."),
+                    "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -876,7 +927,16 @@ namespace waktu_sholat
                     L("Gagal mengecek pembaruan:\n", "Failed to check for updates:\n") + ex.Message,
                     "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+            finally
+            {
+                UseWaitCursor = false;
+                _checkingUpdate = false;
+            }
         }
+
+        // Samakan jumlah komponen versi agar 1.0.0 == 1.0.0.0 saat dibandingkan.
+        private static Version Norm(Version v) =>
+            new(v.Major, v.Minor, Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
 
         private static Version? ParseVersion(string s)
         {

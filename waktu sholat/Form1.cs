@@ -120,7 +120,9 @@ namespace waktu_sholat
         {
             InitializeComponent();
             BuildUi();
+            LoadStartupSetting();
             BuildTray();
+            ApplyStartup();          // default: ikut start saat Windows booting
             BuildOverlay();
             LoadCsv();
             StartTimer();
@@ -706,6 +708,21 @@ namespace waktu_sholat
             var menu = new ContextMenuStrip();
             menu.Items.Add("Buka", null, (_, _) => ShowForm());
             menu.Items.Add(new ToolStripSeparator());
+
+            var startupItem = new ToolStripMenuItem("Mulai saat Windows dinyalakan")
+            {
+                Checked = _startupEnabled,
+                CheckOnClick = true,
+            };
+            startupItem.CheckedChanged += (_, _) =>
+            {
+                _startupEnabled = startupItem.Checked;
+                SaveStartupSetting();
+                ApplyStartup();
+            };
+            menu.Items.Add(startupItem);
+
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Cek Pembaruan", null, (_, _) => CheckUpdate());
             menu.Items.Add("Uninstall", null, (_, _) => Uninstall());
             menu.Items.Add(new ToolStripSeparator());
@@ -1004,8 +1021,12 @@ namespace waktu_sholat
             {
                 using var run = Registry.CurrentUser.OpenSubKey(
                     @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
-                run?.DeleteValue("WaktuSholatLeeds", throwOnMissingValue: false);
+                run?.DeleteValue(RunKeyName, throwOnMissingValue: false);
             }
+            catch { /* abaikan */ }
+
+            // Hapus folder pengaturan di %APPDATA%
+            try { if (Directory.Exists(SettingsDir)) Directory.Delete(SettingsDir, true); }
             catch { /* abaikan */ }
 
             try
@@ -1035,15 +1056,78 @@ namespace waktu_sholat
             ExitApp();
         }
 
-        private static string LangPath => Path.Combine(AppContext.BaseDirectory, "lang.txt");
+        // ------------------------------------------------------------------
+        // Pengaturan (disimpan di %APPDATA%\WaktuSholatLeeds agar bisa ditulis
+        // tanpa admin walau app ter-install di Program Files)
+        // ------------------------------------------------------------------
+        private static string SettingsDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "WaktuSholatLeeds");
+        private static string LangPath => Path.Combine(SettingsDir, "lang.txt");
+        private static string StartupSettingPath => Path.Combine(SettingsDir, "startup.txt");
+
         private void LoadLang()
         {
-            try { if (File.Exists(LangPath)) _english = File.ReadAllText(LangPath).Trim() == "en"; }
+            try
+            {
+                if (File.Exists(LangPath))
+                    _english = File.ReadAllText(LangPath).Trim() == "en";
+                else
+                {
+                    // migrasi dari lokasi lama (folder app)
+                    var old = Path.Combine(AppContext.BaseDirectory, "lang.txt");
+                    if (File.Exists(old)) _english = File.ReadAllText(old).Trim() == "en";
+                }
+            }
             catch { /* abaikan */ }
         }
         private void SaveLang()
         {
-            try { File.WriteAllText(LangPath, _english ? "en" : "id"); }
+            try
+            {
+                Directory.CreateDirectory(SettingsDir);
+                File.WriteAllText(LangPath, _english ? "en" : "id");
+            }
+            catch { /* abaikan */ }
+        }
+
+        // ---- Mulai bersama Windows (default: aktif) ----
+        private const string RunKeyName = "WaktuSholatLeeds";
+        private bool _startupEnabled = true;
+
+        private void LoadStartupSetting()
+        {
+            try
+            {
+                if (File.Exists(StartupSettingPath))
+                    _startupEnabled = File.ReadAllText(StartupSettingPath).Trim() != "0";
+            }
+            catch { /* abaikan */ }
+        }
+        private void SaveStartupSetting()
+        {
+            try
+            {
+                Directory.CreateDirectory(SettingsDir);
+                File.WriteAllText(StartupSettingPath, _startupEnabled ? "1" : "0");
+            }
+            catch { /* abaikan */ }
+        }
+
+        // Tulis/hapus entri autostart di registry sesuai pengaturan.
+        // Path selalu diperbarui ke exe yang sedang berjalan.
+        private void ApplyStartup()
+        {
+            try
+            {
+                using var run = Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+                if (run == null) return;
+                if (_startupEnabled)
+                    run.SetValue(RunKeyName, $"\"{Application.ExecutablePath}\"");
+                else
+                    run.DeleteValue(RunKeyName, throwOnMissingValue: false);
+            }
             catch { /* abaikan */ }
         }
 

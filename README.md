@@ -14,7 +14,13 @@ Aplikasi desktop Windows (C# / WinForms, .NET 10) untuk menampilkan **jadwal wak
 - **Dwibahasa** Indonesia / Inggris (toggle ID/EN, tersimpan di `lang.txt`).
 - Tombol **Cek Update** (cek versi online) dan **Uninstall**.
 
-## Menjalankan
+## Instalasi (pengguna)
+
+Unduh installer `.msi` dari halaman [Releases](https://github.com/Santo-UoL/waktu-sholat-leeds/releases) — self-contained, tidak perlu install .NET.
+
+> **Catatan:** browser mungkin menampilkan peringatan *"isn't commonly downloaded"* (SmartScreen). Ini normal untuk installer baru yang belum ditandatangani digital. Klik **…** → **Keep** → **Keep anyway**, dan saat menjalankan pilih **More info → Run anyway**.
+
+## Menjalankan dari source
 
 Butuh **.NET 10 SDK** (Windows).
 

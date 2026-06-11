@@ -126,6 +126,22 @@ namespace waktu_sholat
             BuildOverlay();
             LoadCsv();
             StartTimer();
+            ScheduleStartupUpdateCheck();
+        }
+
+        // Cek update otomatis sekali saat app dibuka (senyap; hanya bertanya
+        // bila ada versi baru). Ditunda 8 detik agar jaringan siap dulu,
+        // terutama saat app ikut start bersama Windows.
+        private void ScheduleStartupUpdateCheck()
+        {
+            var t = new System.Windows.Forms.Timer { Interval = 8000 };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                t.Dispose();
+                CheckUpdate(silent: true);
+            };
+            t.Start();
         }
 
         private void BuildUi()
@@ -887,11 +903,13 @@ namespace waktu_sholat
         // ------------------------------------------------------------------
         private bool _checkingUpdate;
 
-        private async void CheckUpdate()
+        // silent=true: dipakai saat startup — hanya bertanya bila ADA versi baru;
+        // tidak menampilkan pesan "sudah terbaru" atau error jaringan.
+        private async void CheckUpdate(bool silent = false)
         {
             if (_checkingUpdate) return;   // cegah klik ganda
             _checkingUpdate = true;
-            UseWaitCursor = true;
+            UseWaitCursor = !silent;
             var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
 
             try
@@ -909,9 +927,10 @@ namespace waktu_sholat
                 var latest = ParseVersion(tag);
                 if (latest == null)
                 {
-                    MessageBox.Show(L("Tidak bisa membaca versi rilis dari GitHub.",
-                                      "Could not read release version from GitHub."),
-                        "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    if (!silent)
+                        MessageBox.Show(L("Tidak bisa membaca versi rilis dari GitHub.",
+                                          "Could not read release version from GitHub."),
+                            "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -936,10 +955,11 @@ namespace waktu_sholat
 
                 if (Norm(latest) <= Norm(current))
                 {
-                    MessageBox.Show(
-                        L($"Sudah versi terbaru ({current.ToString(3)}).",
-                          $"You're up to date ({current.ToString(3)})."),
-                        "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (!silent)
+                        MessageBox.Show(
+                            L($"Sudah versi terbaru ({current.ToString(3)}).",
+                              $"You're up to date ({current.ToString(3)})."),
+                            "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
@@ -978,14 +998,16 @@ namespace waktu_sholat
             }
             catch (HttpRequestException ex) when ((int?)ex.StatusCode == 404)
             {
-                MessageBox.Show(L("Belum ada rilis di GitHub.", "No releases found on GitHub."),
-                    "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (!silent)
+                    MessageBox.Show(L("Belum ada rilis di GitHub.", "No releases found on GitHub."),
+                        "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    L("Gagal mengecek pembaruan:\n", "Failed to check for updates:\n") + ex.Message,
-                    "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (!silent)
+                    MessageBox.Show(
+                        L("Gagal mengecek pembaruan:\n", "Failed to check for updates:\n") + ex.Message,
+                        "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally
             {

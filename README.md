@@ -47,6 +47,10 @@ Header: `Date,Weekday,Hijri,Fajr,Fajr_Iqama,Shuruq,Dhuhr,Dhuhr_Iqama,Asr,Asr_Iqa
 
 Kolom iqamah boleh berupa jam (`21:45`) atau teks keterangan (mis. `COMBINED WITH MAGHRIB`).
 
+## Kontak
+
+Pertanyaan, masukan, atau laporan masalah: **elsu@leeds.ac.uk** — atau buka [issue di GitHub](https://github.com/Santo-UoL/waktu-sholat-leeds/issues).
+
 ## Struktur
 
 - `waktu sholat/Form1.cs` — UI custom-paint + logika utama (CSV, tray, overlay, bahasa, update/uninstall).

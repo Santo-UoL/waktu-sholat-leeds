@@ -66,6 +66,9 @@ namespace waktu_sholat
         private Rectangle _langRect;         // area klik toggle bahasa
         private Rectangle _updateRect;       // tombol cek pembaruan
         private Rectangle _uninstallRect;    // tombol uninstall
+        private Rectangle _contactRect;      // tautan kontak email
+
+        private const string ContactEmail = "elsu@leeds.ac.uk";
 
         // Repo GitHub tempat rilis dipublikasikan (untuk fitur Cek Update).
         private const string GitHubRepo = "Santo-UoL/waktu-sholat-leeds";
@@ -200,6 +203,21 @@ namespace waktu_sholat
             DrawCenter(g, _statusText, _fStatus, Color.FromArgb(150, _cCream), W / 2f, after + 46);
 
             DrawFooterButtons(g, W, after + 74);
+
+            // kontak email (bisa diklik)
+            DrawContact(g, W, after + 108);
+        }
+
+        private void DrawContact(Graphics g, int W, float y)
+        {
+            string txt = L("Kontak", "Contact") + ":  " + ContactEmail;
+            var sz = g.MeasureString(txt, _fStatus);
+            float x = W / 2f - sz.Width / 2f;
+            _contactRect = Rectangle.Round(new RectangleF(x, y, sz.Width, sz.Height));
+            using var b = new SolidBrush(Color.FromArgb(140, _cGoldLite));
+            g.DrawString(txt, _fStatus, b, x, y);
+            using var p = new Pen(Color.FromArgb(70, _cGoldLite), 1f);
+            g.DrawLine(p, x, y + sz.Height - 2, x + sz.Width, y + sz.Height - 2);
         }
 
         // Latar statis: gradien, cahaya, pola girih, siluet masjid, mihrab,
@@ -651,6 +669,16 @@ namespace waktu_sholat
             }
             if (_updateRect.Contains(e.Location)) { CheckUpdate(); return; }
             if (_uninstallRect.Contains(e.Location)) { Uninstall(); return; }
+            if (_contactRect.Contains(e.Location))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo("mailto:" + ContactEmail)
+                    { UseShellExecute = true });
+                }
+                catch { /* tidak ada mail client — abaikan */ }
+                return;
+            }
         }
 
         // ------------------------------------------------------------------

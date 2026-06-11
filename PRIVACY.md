@@ -23,5 +23,5 @@ We do not share any data with third parties, because we do not collect any data.
 
 ## Contact
 
-Questions about this privacy statement can be raised via the project's GitHub issues page:
+Questions about this privacy statement can be sent to **elsu@leeds.ac.uk**, or raised via the project's GitHub issues page:
 https://github.com/Santo-UoL/waktu-sholat-leeds/issues

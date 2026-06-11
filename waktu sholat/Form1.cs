@@ -210,14 +210,18 @@ namespace waktu_sholat
 
         private void DrawContact(Graphics g, int W, float y)
         {
-            string txt = L("Kontak", "Contact") + ":  " + ContactEmail;
+            // Tautan gaya hyperlink: hanya label, alamat email terbuka saat diklik.
+            string txt = "✉  " + L("Hubungi kami", "Contact us");
             var sz = g.MeasureString(txt, _fStatus);
             float x = W / 2f - sz.Width / 2f;
-            _contactRect = Rectangle.Round(new RectangleF(x, y, sz.Width, sz.Height));
-            using var b = new SolidBrush(Color.FromArgb(140, _cGoldLite));
+            _contactRect = Rectangle.Round(new RectangleF(x - 4, y - 3, sz.Width + 8, sz.Height + 6));
+
+            bool hover = _contactRect.Contains(PointToClient(MousePosition));
+            Color link = hover ? Color.FromArgb(170, 215, 255) : Color.FromArgb(130, 185, 235);
+            using var b = new SolidBrush(link);
             g.DrawString(txt, _fStatus, b, x, y);
-            using var p = new Pen(Color.FromArgb(70, _cGoldLite), 1f);
-            g.DrawLine(p, x, y + sz.Height - 2, x + sz.Width, y + sz.Height - 2);
+            using var p = new Pen(link, 1f);
+            g.DrawLine(p, x + 18, y + sz.Height - 2, x + sz.Width, y + sz.Height - 2);
         }
 
         // Latar statis: gradien, cahaya, pola girih, siluet masjid, mihrab,
@@ -679,6 +683,17 @@ namespace waktu_sholat
                 catch { /* tidak ada mail client — abaikan */ }
                 return;
             }
+        }
+
+        // Kursor tangan di atas area yang bisa diklik (tautan & tombol).
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            bool clickable = _contactRect.Contains(e.Location)
+                || _updateRect.Contains(e.Location)
+                || _uninstallRect.Contains(e.Location)
+                || _langRect.Contains(e.Location);
+            Cursor = clickable ? Cursors.Hand : Cursors.Default;
         }
 
         // ------------------------------------------------------------------

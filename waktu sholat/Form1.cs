@@ -116,6 +116,36 @@ namespace waktu_sholat
                      _fTime = null!, _fIqama = null!, _fDate = null!, _fHijri = null!,
                      _fSub = null!, _fCount = null!, _fStatus = null!, _fBtn = null!;
 
+        // ---- Dukungan DPI per-monitor ----
+        // Semua layout digambar pada kanvas logis BaseW x BaseH (96 dpi),
+        // lalu diskalakan seragam mengikuti DPI monitor tempat window berada.
+        private const int BaseW = 460, BaseH = 694;
+        private float UiScale => DeviceDpi / 96f;
+        private float _bgCacheScale = -1f;
+
+        private void ApplyDpiSize()
+        {
+            ClientSize = new Size(
+                (int)Math.Round(BaseW * UiScale),
+                (int)Math.Round(BaseH * UiScale));
+        }
+
+        // Konversi posisi mouse (piksel fisik) ke koordinat logis.
+        private Point ToLogical(Point p)
+        {
+            float s = UiScale;
+            return new Point((int)(p.X / s), (int)(p.Y / s));
+        }
+
+        protected override void OnDpiChanged(DpiChangedEventArgs e)
+        {
+            base.OnDpiChanged(e);
+            ApplyDpiSize();
+            _bgCache?.Dispose();
+            _bgCache = null;
+            Invalidate();
+        }
+
         public Form1()
         {
             InitializeComponent();
@@ -146,7 +176,7 @@ namespace waktu_sholat
 
         private void BuildUi()
         {
-            ClientSize = new Size(460, 694);
+            ClientSize = new Size(BaseW, BaseH);   // disesuaikan DPI di OnHandleCreated
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
@@ -164,18 +194,20 @@ namespace waktu_sholat
 
             LoadLang();
 
-            _fClock = new Font("Segoe UI Semibold", 33f);
-            _fArTitle = new Font("Traditional Arabic", 30f, FontStyle.Bold);
-            _fArName = new Font("Traditional Arabic", 26f, FontStyle.Bold);
-            _fName = new Font("Segoe UI Semibold", 15f);
-            _fTime = new Font("Segoe UI", 19f, FontStyle.Bold);
-            _fIqama = new Font("Segoe UI", 8.5f);
-            _fDate = new Font("Segoe UI", 10.5f);
-            _fHijri = new Font("Segoe UI", 10.5f, FontStyle.Bold);
-            _fSub = new Font("Segoe UI", 8.5f, FontStyle.Bold);
-            _fCount = new Font("Segoe UI", 13.5f, FontStyle.Bold);
-            _fStatus = new Font("Segoe UI", 8.5f);
-            _fBtn = new Font("Segoe UI", 9f, FontStyle.Bold);
+            // Satuan piksel (bukan point) supaya ukuran glyph TIDAK ikut DPI —
+            // penskalaan dilakukan sekali lewat ScaleTransform di OnPaint.
+            _fClock = new Font("Segoe UI Semibold", 44f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _fArTitle = new Font("Traditional Arabic", 40f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _fArName = new Font("Traditional Arabic", 35f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _fName = new Font("Segoe UI Semibold", 20f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _fTime = new Font("Segoe UI", 25f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _fIqama = new Font("Segoe UI", 11.5f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _fDate = new Font("Segoe UI", 14f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _fHijri = new Font("Segoe UI", 14f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _fSub = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _fCount = new Font("Segoe UI", 18f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _fStatus = new Font("Segoe UI", 11.5f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _fBtn = new Font("Segoe UI", 12f, FontStyle.Bold, GraphicsUnit.Pixel);
         }
 
         // ------------------------------------------------------------------
@@ -188,10 +220,14 @@ namespace waktu_sholat
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-            int W = ClientSize.Width, H = ClientSize.Height;
+            int W = BaseW, H = BaseH;
+            float s = UiScale;
 
-            if (_bgCache == null) BuildBgCache();
+            if (_bgCache == null || Math.Abs(_bgCacheScale - s) > 0.01f) BuildBgCache();
             if (_bgCache != null) g.DrawImageUnscaled(_bgCache, 0, 0);
+
+            // Elemen dinamis digambar dalam koordinat logis, diskalakan ke DPI.
+            g.ScaleTransform(s, s);
 
             // subjudul latin (ikut bahasa)
             DrawCenter(g, L("WAKTU SHOLAT  ·  LEEDS", "PRAYER TIMES  ·  LEEDS"),
@@ -234,7 +270,7 @@ namespace waktu_sholat
             float x = W / 2f - sz.Width / 2f;
             _contactRect = Rectangle.Round(new RectangleF(x - 4, y - 3, sz.Width + 8, sz.Height + 6));
 
-            bool hover = _contactRect.Contains(PointToClient(MousePosition));
+            bool hover = _contactRect.Contains(ToLogical(PointToClient(MousePosition)));
             Color link = hover ? Color.FromArgb(170, 215, 255) : Color.FromArgb(130, 185, 235);
             using var b = new SolidBrush(link);
             g.DrawString(txt, _fStatus, b, x, y);
@@ -246,13 +282,15 @@ namespace waktu_sholat
         // bingkai, bulan sabit, judul arab, pembatas. Digambar sekali ke cache.
         private void BuildBgCache()
         {
-            int W = ClientSize.Width, H = ClientSize.Height;
-            if (W <= 0 || H <= 0) return;
+            int W = BaseW, H = BaseH;
+            float s = UiScale;
             _bgCache?.Dispose();
-            var bmp = new Bitmap(W, H);
+            var bmp = new Bitmap((int)Math.Ceiling(W * s), (int)Math.Ceiling(H * s));
             using var g = Graphics.FromImage(bmp);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+            g.ScaleTransform(s, s);
+            _bgCacheScale = s;
 
             // gradien zamrud dalam
             using (var bg = new LinearGradientBrush(new Rectangle(0, 0, W, H), _cBgTop, _cBgBot, 90f))
@@ -678,9 +716,10 @@ namespace waktu_sholat
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
-            if (_langRect.Contains(e.Location))
+            var pt = ToLogical(e.Location);   // hit-rect disimpan dalam koordinat logis
+            if (_langRect.Contains(pt))
             {
-                bool en = e.X > _langRect.X + _langRect.Width / 2; // kanan = EN, kiri = ID
+                bool en = pt.X > _langRect.X + _langRect.Width / 2; // kanan = EN, kiri = ID
                 if (en != _english)
                 {
                     _english = en;
@@ -689,9 +728,9 @@ namespace waktu_sholat
                 }
                 return;
             }
-            if (_updateRect.Contains(e.Location)) { CheckUpdate(); return; }
-            if (_uninstallRect.Contains(e.Location)) { Uninstall(); return; }
-            if (_contactRect.Contains(e.Location))
+            if (_updateRect.Contains(pt)) { CheckUpdate(); return; }
+            if (_uninstallRect.Contains(pt)) { Uninstall(); return; }
+            if (_contactRect.Contains(pt))
             {
                 try
                 {
@@ -707,10 +746,11 @@ namespace waktu_sholat
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
-            bool clickable = _contactRect.Contains(e.Location)
-                || _updateRect.Contains(e.Location)
-                || _uninstallRect.Contains(e.Location)
-                || _langRect.Contains(e.Location);
+            var pt = ToLogical(e.Location);
+            bool clickable = _contactRect.Contains(pt)
+                || _updateRect.Contains(pt)
+                || _uninstallRect.Contains(pt)
+                || _langRect.Contains(pt);
             Cursor = clickable ? Cursors.Hand : Cursors.Default;
         }
 
@@ -884,6 +924,7 @@ namespace waktu_sholat
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
+            ApplyDpiSize();   // sesuaikan ukuran window dgn DPI monitor saat ini
             try
             {
                 int dark = 1;

@@ -8,6 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Product>Waktu Sholat Leeds</Product>
     <AssemblyTitle>Waktu Sholat Leeds</AssemblyTitle>

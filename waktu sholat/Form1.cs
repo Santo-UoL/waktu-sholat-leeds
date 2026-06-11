@@ -975,18 +975,21 @@ namespace waktu_sholat
                     return;
                 }
 
-                // Cari asset .msi pada rilis
-                string? msiUrl = null, msiName = null;
+                // Cari asset .msi dan .exe portable pada rilis
+                string? msiUrl = null, msiName = null, exeUrl = null;
                 if (root.TryGetProperty("assets", out var assets))
                 {
                     foreach (var a in assets.EnumerateArray())
                     {
                         var n = a.GetProperty("name").GetString() ?? "";
-                        if (n.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                        if (msiUrl == null && n.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
                         {
                             msiUrl = a.GetProperty("browser_download_url").GetString();
                             msiName = n;
-                            break;
+                        }
+                        else if (exeUrl == null && n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                        {
+                            exeUrl = a.GetProperty("browser_download_url").GetString();
                         }
                     }
                 }
@@ -1005,11 +1008,52 @@ namespace waktu_sholat
                 }
 
                 // Ada versi baru -> tanya dulu
+                bool portable = IsPortable();
                 var ask = MessageBox.Show(
-                    L($"Versi baru tersedia di GitHub!\n\nVersi sekarang : {current.ToString(3)}\nVersi terbaru  : {latest.ToString(3)}\n\nUpdate sekarang? Installer akan diunduh, lalu aplikasi ini menutup diri dan installer berjalan.",
-                      $"A new version is available on GitHub!\n\nCurrent version : {current.ToString(3)}\nLatest version  : {latest.ToString(3)}\n\nUpdate now? The installer will be downloaded, then this app will close and the installer will run."),
+                    portable
+                        ? L($"Versi baru tersedia di GitHub!\n\nVersi sekarang : {current.ToString(3)}\nVersi terbaru  : {latest.ToString(3)}\n\nUpdate sekarang? Pembaruan akan diunduh, lalu aplikasi restart otomatis.",
+                            $"A new version is available on GitHub!\n\nCurrent version : {current.ToString(3)}\nLatest version  : {latest.ToString(3)}\n\nUpdate now? The update will be downloaded, then the app restarts automatically.")
+                        : L($"Versi baru tersedia di GitHub!\n\nVersi sekarang : {current.ToString(3)}\nVersi terbaru  : {latest.ToString(3)}\n\nUpdate sekarang? Installer akan diunduh, lalu aplikasi ini menutup diri dan installer berjalan.",
+                            $"A new version is available on GitHub!\n\nCurrent version : {current.ToString(3)}\nLatest version  : {latest.ToString(3)}\n\nUpdate now? The installer will be downloaded, then this app will close and the installer will run."),
                     "Waktu Sholat Leeds", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (ask != DialogResult.Yes) return;
+
+                _tray.BalloonTipTitle = "Waktu Sholat Leeds";
+                _tray.BalloonTipText = L("Mengunduh pembaruan… app akan menutup sendiri saat siap.",
+                                         "Downloading update… the app will close itself when ready.");
+                _tray.ShowBalloonTip(3000);
+
+                if (portable)
+                {
+                    // Mode portable: unduh exe portable baru, ganti file saat app
+                    // menutup, lalu jalankan kembali — tanpa msiexec (lolos policy IT).
+                    if (exeUrl == null)
+                    {
+                        Process.Start(new ProcessStartInfo(releasePage) { UseShellExecute = true });
+                        return;
+                    }
+                    string currentExe = Application.ExecutablePath;
+                    string newFile = currentExe + ".new";
+                    var exeBytes = await http.GetByteArrayAsync(exeUrl);
+                    await File.WriteAllBytesAsync(newFile, exeBytes);
+
+                    string bat = Path.Combine(Path.GetTempPath(), "update_wsl.bat");
+                    File.WriteAllText(bat,
+                        "@echo off\r\n" +
+                        "timeout /t 2 /nobreak >nul\r\n" +
+                        $"move /y \"{newFile}\" \"{currentExe}\"\r\n" +
+                        $"start \"\" \"{currentExe}\"\r\n" +
+                        "del \"%~f0\"\r\n");
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c \"{bat}\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                    });
+                    ExitApp();
+                    return;
+                }
 
                 if (msiUrl == null)
                 {
@@ -1017,12 +1061,6 @@ namespace waktu_sholat
                     Process.Start(new ProcessStartInfo(releasePage) { UseShellExecute = true });
                     return;
                 }
-
-                // Unduh MSI ke folder temp (tampilkan balon agar user tahu)
-                _tray.BalloonTipTitle = "Waktu Sholat Leeds";
-                _tray.BalloonTipText = L("Mengunduh pembaruan… app akan menutup sendiri saat siap.",
-                                         "Downloading update… the app will close itself when ready.");
-                _tray.ShowBalloonTip(3000);
 
                 string dest = Path.Combine(Path.GetTempPath(), msiName!);
                 var bytes = await http.GetByteArrayAsync(msiUrl);
@@ -1060,6 +1098,17 @@ namespace waktu_sholat
         // Samakan jumlah komponen versi agar 1.0.0 == 1.0.0.0 saat dibandingkan.
         private static Version Norm(Version v) =>
             new(v.Major, v.Minor, Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
+
+        // Mode portable = exe TIDAK berada di Program Files (dipasang MSI).
+        private static bool IsPortable()
+        {
+            string exe = Application.ExecutablePath;
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            bool inPf = (!string.IsNullOrEmpty(pf) && exe.StartsWith(pf, StringComparison.OrdinalIgnoreCase))
+                     || (!string.IsNullOrEmpty(pf86) && exe.StartsWith(pf86, StringComparison.OrdinalIgnoreCase));
+            return !inPf;
+        }
 
         private static Version? ParseVersion(string s)
         {

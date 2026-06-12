@@ -809,6 +809,15 @@ namespace waktu_sholat
             BringToFront();
         }
 
+        // Buka bila tersembunyi, sembunyikan bila sedang tampil.
+        private void ToggleForm()
+        {
+            if (Visible && WindowState != FormWindowState.Minimized)
+                HideToTray();
+            else
+                ShowForm();
+        }
+
         private void HideToTray()
         {
             ShowInTaskbar = false;
@@ -838,7 +847,7 @@ namespace waktu_sholat
         private void BuildOverlay()
         {
             _overlay = new TaskbarOverlay();
-            _overlay.Clicked += ShowForm;
+            _overlay.Clicked += ToggleForm;   // klik pil = buka/tutup bergantian
             _overlay.Show();
 
             // Hitung jarak adaptif di thread latar tiap 2 detik (UIA lambat,

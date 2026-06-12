@@ -4,7 +4,7 @@
 
   <Package Name="Waktu Sholat Leeds"
            Manufacturer="Santo"
-           Version="1.5.1.0"
+           Version="1.5.2.0"
            UpgradeCode="B7A4F2E1-8C3D-4A6B-9E2F-1D5C7A9B3E4F"
            Scope="perMachine"
            Compressed="yes">

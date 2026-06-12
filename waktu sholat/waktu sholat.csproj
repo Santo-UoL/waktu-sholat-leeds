@@ -13,7 +13,7 @@
     <Product>Waktu Sholat Leeds</Product>
     <AssemblyTitle>Waktu Sholat Leeds</AssemblyTitle>
     <Description>Jadwal waktu sholat Leeds</Description>
-    <Version>1.5.1</Version>
+    <Version>1.5.2</Version>
   </PropertyGroup>
 
   <ItemGroup>

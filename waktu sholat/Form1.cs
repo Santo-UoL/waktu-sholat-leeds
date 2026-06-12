@@ -180,6 +180,7 @@ namespace waktu_sholat
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
+            MinimizeBox = false;   // cukup tombol X (X = sembunyi ke tray)
             BackColor = _cBgBot;
             DoubleBuffered = true;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
@@ -1437,8 +1438,8 @@ namespace waktu_sholat
             _countdownText = L($"Menuju {nextName}   {rem}", $"Next {nextName}   {rem}");
             _statusText = _warning
                 ? L($"  {WarningMinutes} menit menjelang waktu sholat  ", $"  {WarningMinutes} minutes to prayer time  ")
-                : L("Klik ikon taskbar untuk buka · minimize untuk sembunyi",
-                    "Click taskbar icon to open · minimize to hide");
+                : L("Klik ikon taskbar untuk buka · tombol X untuk sembunyi ke tray",
+                    "Click taskbar icon to open · X button hides to tray");
 
             _blinkOn = _warning ? !_blinkOn : false;
 

@@ -45,6 +45,7 @@ namespace waktu_sholat
         // ---- Konfigurasi ----
         private const string CsvPath = @"C:\Users\Santo\Downloads\LGM_Prayer_Calendar_2026.csv";
         private const int WarningMinutes = 15;   // berkedip merah X menit sebelum sholat
+        private const int AskPrayedMinutes = 10; // tanya "sudah sholat?" X menit sebelum sholat berikutnya
 
         // Nama 5 waktu sholat + indeks kolom adhan & iqama di CSV
         private static readonly (string Name, int AdhanCol, int IqamaCol)[] Prayers =
@@ -110,6 +111,10 @@ namespace waktu_sholat
 
         private bool _blinkOn;
         private string? _loadError;
+
+        // Pengingat "sudah sholat?" — sekali per periode sholat
+        private string _askedPeriod = "";
+        private bool _askDialogOpen;
 
         // Font UI
         private Font _fClock = null!, _fArTitle = null!, _fArName = null!, _fName = null!,
@@ -1451,6 +1456,36 @@ namespace waktu_sholat
                     "Click taskbar icon to open · X button hides to tray");
 
             _blinkOn = _warning ? !_blinkOn : false;
+
+            // Tanya "sudah sholat?" X menit menjelang sholat berikutnya —
+            // sekali saja per periode (mis. jelang Maghrib: tanya sholat Asar).
+            string periodKey = $"{today:yyyy-MM-dd}|{nextIdx}";
+            if (remaining.TotalMinutes <= AskPrayedMinutes && remaining.TotalSeconds > 0
+                && _askedPeriod != periodKey && !_askDialogOpen)
+            {
+                _askedPeriod = periodKey;
+                _askDialogOpen = true;
+                int prevIdx = ((nextIdx >= 0 ? nextIdx : 5) + 4) % 5; // sebelum Subuh = Isya
+                string prevName = PName(prevIdx);
+                string nName = nextName;
+                if (!IsHandleCreated) _ = Handle;   // form tersembunyi belum punya handle
+                BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        var r = MessageBox.Show(
+                            L($"Waktu {nName} tinggal ±{AskPrayedMinutes} menit.\n\nApakah kamu sudah sholat {prevName}?",
+                              $"About {AskPrayedMinutes} minutes left until {nName}.\n\nHave you prayed {prevName} yet?"),
+                            "Waktu Sholat Leeds", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                        if (r == DialogResult.No)
+                            MessageBox.Show(
+                                L($"Yuk, segera sholat {prevName} sebelum masuk waktu {nName} 🙏",
+                                  $"Please pray {prevName} soon, before {nName} begins 🙏"),
+                                "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    finally { _askDialogOpen = false; }
+                }));
+            }
 
             int totalMin = Math.Max(0, (int)remaining.TotalMinutes);
             string iconText = totalMin < 60 ? totalMin.ToString() : (totalMin / 60) + L("j", "h");

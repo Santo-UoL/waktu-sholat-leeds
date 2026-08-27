@@ -1459,29 +1459,36 @@ namespace waktu_sholat
 
             // Tanya "sudah sholat?" X menit menjelang sholat berikutnya —
             // sekali saja per periode (mis. jelang Maghrib: tanya sholat Asar).
+            // Dikecualikan: "sudah sholat Subuh?" (jelang Zuhur) karena waktu
+            // Subuh sudah habis sejak fajar/matahari terbit.
             string periodKey = $"{today:yyyy-MM-dd}|{nextIdx}";
+            int prevIdx = ((nextIdx >= 0 ? nextIdx : 5) + 4) % 5; // sebelum Subuh = Isya
             if (remaining.TotalMinutes <= AskPrayedMinutes && remaining.TotalSeconds > 0
+                && prevIdx != 0
                 && _askedPeriod != periodKey && !_askDialogOpen)
             {
                 _askedPeriod = periodKey;
                 _askDialogOpen = true;
-                int prevIdx = ((nextIdx >= 0 ? nextIdx : 5) + 4) % 5; // sebelum Subuh = Isya
                 string prevName = PName(prevIdx);
                 string nName = nextName;
                 if (!IsHandleCreated) _ = Handle;   // form tersembunyi belum punya handle
                 BeginInvoke(new Action(() =>
                 {
+                    // MB_TOPMOST: selalu tampil paling atas agar tidak tertutup window lain
+                    const MessageBoxOptions topMost = (MessageBoxOptions)0x40000;
                     try
                     {
                         var r = MessageBox.Show(
                             L($"Waktu {nName} tinggal ±{AskPrayedMinutes} menit.\n\nApakah kamu sudah sholat {prevName}?",
                               $"About {AskPrayedMinutes} minutes left until {nName}.\n\nHave you prayed {prevName} yet?"),
-                            "Waktu Sholat Leeds", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                            "Waktu Sholat Leeds", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                            MessageBoxDefaultButton.Button1, topMost);
                         if (r == DialogResult.No)
                             MessageBox.Show(
                                 L($"Yuk, segera sholat {prevName} sebelum masuk waktu {nName} 🙏",
                                   $"Please pray {prevName} soon, before {nName} begins 🙏"),
-                                "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                "Waktu Sholat Leeds", MessageBoxButtons.OK, MessageBoxIcon.Information,
+                                MessageBoxDefaultButton.Button1, topMost);
                     }
                     finally { _askDialogOpen = false; }
                 }));
